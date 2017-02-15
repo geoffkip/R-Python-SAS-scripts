@@ -1,10 +1,4 @@
 # -*- coding: utf-8 -*-
-"""
-Created on Mon Jan 18 19:51:29 2016
-
-@author: jrose01
-"""
-
 from pandas import Series, DataFrame
 import pandas as pd
 import numpy as np
