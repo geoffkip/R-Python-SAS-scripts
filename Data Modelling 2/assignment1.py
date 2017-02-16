@@ -11,8 +11,7 @@ import time
 # You can adjust them after completing the lab
 C = 1
 kernel = 'linear'
-iterations = 5000   # TODO: Change to 200000 once you get to Question#2
-
+iterations = 5000   
 #
 # INFO: You can set this to false if you want to
 # draw the full square matrix
