@@ -1,0 +1,594 @@
+---
+title: "The Democratization of Data using Dynamic Reporting"
+author: "Geoffrey Kip"
+date: "March 7, 2017"
+runtime: shiny
+output: 
+  html_document:
+   theme: cerulean
+   highlight: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(shiny)
+library(ggplot2)
+library(dplyr)
+library(lubridate)
+library(shinythemes)
+library(reshape)
+library(rsconnect)
+library(varhandle)
+
+report_data <- read.csv("data/goal_progress_raw_data.CSV", header=T)
+report_data1 <- (report_data[,c(1,2,4,5)])
+graph_data <- melt(report_data1, id=c("goal","submitted_at"))
+graph_data$submitted_at <- mdy(graph_data$submitted_at)
+graph_data[,"variable"] <- ifelse(graph_data[,"variable"] == "pred_app_prog", "goal", 'cumulative apps')
+names(graph_data) <- c("goal" , "submitted_at" , "Label" , "Applications")
+
+
+graph_data2 <- report_data
+graph_data2$submitted_at <- mdy(graph_data2$submitted_at)
+
+graph_data3 <- graph_data2 %>% 
+  group_by(goal,Week = floor_date(submitted_at, unit="week")) %>%
+  summarise(apps= sum(apps))
+
+
+Front_page_data <- (report_data[,c(1,6,7,8,9,10,11,12,13)])
+Front_page_data <- distinct(Front_page_data)
+Front_page_data2 <- na.omit(Front_page_data)
+
+Front_page_data2 <- Front_page_data2[c("goal", "Total_apps", "Contract_goal" , "apps_trajectory" ,"Progress_to_goal" , 
+                                       "Percent_of_contract_completed", "Goal_difference" , "Start_date" , "End_date")]
+
+colnames(Front_page_data2)[7] <- "Goal_Difference_%" 
+Front_page_data2$`Goal_Difference_%` <- Front_page_data2$`Goal_Difference_%`*100
+
+dates <- Front_page_data2[,c(1,8,9)]
+dates$Start_date <- mdy(dates$Start_date)
+dates$End_date <- mdy(dates$End_date)
+
+session$onFlushed(function() {
+    session$sendCustomMessage(type='jsCode', list(value = script))
+  }, once = FALSE)
+
+size="100%"
+
+```
+
+This R Markdown document is made interactive using Shiny.Shiny allows you to create web apps and dashboard applications which are responsive based on inputs from a user. I am going to show you how I build the "Goal Progress Shiny Web App"
+in a few steps.
+At BDT each of our projects has a Goal that we aim to achieve at the end of each contract period.
+The Goal progress application allows employees at BDT to track the goals and even see visually which projects are falling behind.
+
+
+## Inputs and Outputs
+
+You can embed Shiny inputs and outputs in your document. Outputs are automatically updated whenever inputs change.  This demonstrates how I create a "GoalOutput" output variable which is a list of the names of the goals of this project. I use those names to create a drop-down input list which the user selects from. Go ahead and try changing some of the goals from the drop-down list.
+
+```{r eruptions, warning=FALSE}
+ #Creating an input panel which builds the drop down list of all the Goals
+output$GoalOutput <- renderUI({
+    selectInput("GoalInput", "Goal",
+                sort(unique(report_data$goal)),
+                selected = "FastTrack")})  
+  
+inputPanel(
+  uiOutput("GoalOutput"))
+```
+
+##Reactivity
+
+One great aspect about using Shiny Dashboard Reports is Reactivity. Reactivity just means that any specific input (which comes from you the user) causes a change in an output which is reactive or dependent on that input variable.
+In the example below I write code that makes the "Date Range" slection dependent on the "Goal Input". 
+For example if I choose "FastTrack" as the goal then the DateRange is between "10/01/16" to "06/30/17" which is the contract period for the FastTrack project. However, if I change the goal to "Navigator ACA" then the DateRange changes 
+is between "09/16/16" to "09/15/17" because those are the dates for the "Navigator ACA" project. Go ahead and try changing the goal from Fasttrack to Navigator ACA and see what happens. Furthermore, the DateRange allows you to change the date specifically and pick any date between each date range for each of those Goal projects.
+
+```{r, warning=FALSE}
+#Creating a  reactive date variable which is dependent on the Goal input
+ mydates <- reactive({if (is.null(input$GoalInput)) {
+    return(NULL)
+  }    
+    dates %>%
+      filter(goal== input$GoalInput ,
+             Start_date == Start_date ,
+             End_date == End_date)})
+  
+  
+  
+  output$dates <- renderUI({
+    minval <- mydates()$Start_date
+    maxval <- mydates()$End_date
+    dateRangeInput('daterange1', label = "Choose Date Range:",
+                   start = minval, end = maxval, 
+                   min = minval, max = maxval,
+                   separator = " - ", format = "mm/dd/yy"
+    )
+  })
+
+uiOutput("dates")
+```
+
+##Creating a Static table with color conditional formatting using JavaScript
+
+The table that I create below for the Shiny app is not dynamic or is not reactive on any input from the user.
+Essentially it is a summary table showing all the diffent Goals with their progress at the moment the report was last run. In addition for visual purposes I used JavaScript to color projects that are behind progress as "Red"" and projects which are doing well with "Green". Another great part about Shiny is that if you know HTML, CSS or Javascript you can further edit the User interface (UI) of the application using these languages.
+
+```{r, warning=FALSE}
+
+#Javascript code to add the color conditioning formatting
+script <- "$('tbody tr td:nth-child(7)').each(function() {
+
+              var cellValue = $(this).text();
+
+              if (cellValue > 0) {
+                $(this).css('background-color', '#0c0');
+              }
+              else if (cellValue < 0) {
+                $(this).css('background-color', '#f00');
+              }
+            })"
+
+ output$results <- renderTable(Front_page_data2, align="c")
+  
+  output$Test1 <- renderUI({
+    list(
+      tags$head(tags$script(HTML
+                            ('Shiny.addCustomMessageHandler("jsCode", function(message) { eval(message.value); });')))
+      , tableOutput("results")
+    )
+  })
+
+ div(uiOutput("Test1",width="100%"),style="font-size:90%") #Added an HTML wrapper which adjusts the width and font of the table
+
+
+
+```
+
+##Creating Reactive Graphs with ggplot2
+With Shiny you are able to create Reactive graphs which are dependent on the selection of a user. I use ggplot2 which is a package that you can install in R to create nice visualizations and graphs. The graphs shows the cumulative apps we have submitted and also the app trajectory we need to be submitting to reach the goal. The graphs are dependent on the Goal selection and also the date range. So for example if I go up and change my Goal from the earlier drop down list and change it to "Magellan PACE" or fiddle with the date range then the graph will change to show the current selected 
+Goal or change to show the applications during a specific date range. Try changing around with the Goal drop down menu earlier and also with the date range and see how the graph reacts. Notice how the title is also reactive to the selected Goal.
+
+```{r, warning=FALSE}
+
+  filtered <- reactive({
+    if (is.null(input$GoalInput)) {
+      return(NULL)
+    }    
+    
+    graph_data %>%
+      filter(goal== input$GoalInput ,
+             submitted_at >= input$daterange1[1] ,
+             submitted_at <= input$daterange1[2] ,
+             Applications == Applications ,
+             Label == Label 
+      )
+  })
+
+ output$coolplot <- renderPlot({
+    if (is.null(filtered())) {
+      return()
+    }
+    ggplot(filtered()) + geom_line(aes(x=submitted_at, y=Applications, colour=Label)) + 
+      ggtitle(paste("Cumulative",filtered()$goal, "Applications")) +
+      scale_colour_manual(values=c("blue","gray"))+ theme(legend.text=element_text(size=15))
+  })
+ 
+ plotOutput("coolplot")
+  
+ 
+```
+
+This graph uses the same concept as the earlier graph but just shows the weekly applications for a specific Goal project. Try changing the Goal and Date inputs above and see how this graph changes.
+
+```{r, warning=FALSE}
+
+ subsetdata <- reactive({
+    if (is.null(input$GoalInput)) {
+      return(NULL)
+    }    
+    
+    graph_data3 %>%
+      filter(goal== input$GoalInput ,
+             Week >= input$daterange1[1] ,
+             Week <= input$daterange1[2] ,
+             apps == apps
+      )
+  })
+
+output$secondplot <- renderPlot({
+    if (is.null(subsetdata())) {
+      return()
+    }
+    ggplot(subsetdata(), aes_string('Week', 'apps')) +
+      geom_smooth(method='lm') +
+      geom_point()+
+      geom_line()+
+      ggtitle(paste('Weekly', subsetdata()$goal, 'Applications')) +
+      xlab('Time')
+  })
+
+plotOutput("secondplot")
+
+```
+
+##Putting it all together
+I showed you how to create the several different pieces used to create the app. Here is how all the pieces come together.To create a shiny app you need to specify the UI and the server(which is the R code used to prepare the data you show in the UI). Many Shiny app have a UI file and a server file especially if the codes are long but it is possibe to write the UI code and the server code and store them in one file which is called "app.R". I wrote both my UI and server code and saved it under one file.
+
+```{r, eval=FALSE}
+library(shiny)
+library(ggplot2)
+library(dplyr)
+library(lubridate)
+library(shinythemes)
+library(reshape)
+library(rsconnect)
+library(varhandle)
+
+#load function
+as.numeric.factor <- function(x) {as.numeric(levels(x))[x]}
+
+#Javascript Conditional Formatting 
+
+script <- "$('tbody tr td:nth-child(7)').each(function() {
+
+              var cellValue = $(this).text();
+
+              if (cellValue > 0) {
+                $(this).css('background-color', '#0c0');
+              }
+              else if (cellValue < 0) {
+                $(this).css('background-color', '#f00');
+              }
+            })"
+
+#load data file
+#setwd("K:/ADMINISTRATIVE REPORTS/Daily Response Tracker")
+#myfile <- file.path("data", "goal_progress_raw_data.csv") 
+report_data <- read.csv("data/goal_progress_raw_data.CSV", header=T)
+report_data1 <- (report_data[,c(1,2,4,5)])
+graph_data <- melt(report_data1, id=c("goal","submitted_at"))
+graph_data$submitted_at <- mdy(graph_data$submitted_at)
+graph_data[,"variable"] <- ifelse(graph_data[,"variable"] == "pred_app_prog", "goal", 'cumulative apps')
+names(graph_data) <- c("goal" , "submitted_at" , "Label" , "Applications")
+
+
+graph_data2 <- report_data
+graph_data2$submitted_at <- mdy(graph_data2$submitted_at)
+
+graph_data3 <- graph_data2 %>% 
+  group_by(goal,Week = floor_date(submitted_at, unit="week")) %>%
+  summarise(apps= sum(apps))
+
+
+
+Front_page_data <- (report_data[,c(1,6,7,8,9,10,11,12,13)])
+Front_page_data <- distinct(Front_page_data)
+Front_page_data2 <- na.omit(Front_page_data)
+#Front_page_data2$Goal_difference <- paste(round((Front_page_data2$Goal_difference)*100,digits=1),"%",sep="")
+#Reorder data columns 
+Front_page_data2 <- Front_page_data2[c("goal", "Total_apps", "Contract_goal" , "apps_trajectory" ,"Progress_to_goal" , 
+                                       "Percent_of_contract_completed", "Goal_difference" , "Start_date" , "End_date")]
+
+colnames(Front_page_data2)[7] <- "Goal_Difference_%" 
+Front_page_data2$`Goal_Difference_%` <- Front_page_data2$`Goal_Difference_%`*100
+
+#Front_page_data3 <- Front_page_data2 %>% 
+#mutate (Goal_difference= as.numeric.factor(Percent_of_contract_completed) - 
+#as.numeric.factor(Progress_to_goal))
+
+
+dates <- Front_page_data2[,c(1,8,9)]
+dates$Start_date <- mdy(dates$Start_date)
+dates$End_date <- mdy(dates$End_date)
+
+size="100%"
+
+ui <- fluidPage(theme = shinytheme("cerulean"),
+                sidebarLayout(
+                  sidebarPanel(
+                    uiOutput("GoalOutput",width="100%"), 
+                    uiOutput("dates",width="100%"),
+                    img(src="bdtlogo.png", width="50%"),
+                    h5("Last Updated 02/23/17", align="center"),
+                    br(), br(),
+                    br(), br(),
+                    br(), br(),
+                    br(), br(),
+                    br(), br(),
+                    br(), br(),
+                    splitLayout(cellwidths=size, plotOutput("secondplot", width=size, height=410))
+                    
+                  ),
+                  
+                  mainPanel(
+                    h1("Goal Progress Report", align="center"),
+                    h2("Summary of Goal Progress by Project", align="center"),
+                    div(uiOutput("Test1",width="100%"),style="font-size:90%"),
+                    br(), br(),
+                    fluidRow(plotOutput("coolplot")))))
+
+
+
+server <- function(input, output, session) {
+  
+  session$onFlushed(function() {
+    session$sendCustomMessage(type='jsCode', list(value = script))
+  }, once = FALSE)
+  
+  
+  output$results <- renderTable(Front_page_data2, align="c")
+  
+  output$Test1 <- renderUI({
+    list(
+      tags$head(tags$script(HTML
+                            ('Shiny.addCustomMessageHandler("jsCode", function(message) { eval(message.value); });')))
+      , tableOutput("results")
+    )
+  })
+  
+  
+  
+  
+  output$GoalOutput <- renderUI({
+    selectInput("GoalInput", "Goal",
+                sort(unique(report_data$goal)),
+                selected = "FastTrack")})  
+  
+  
+  filtered <- reactive({
+    if (is.null(input$GoalInput)) {
+      return(NULL)
+    }    
+    
+    graph_data %>%
+      filter(goal== input$GoalInput ,
+             submitted_at >= input$daterange1[1] ,
+             submitted_at <= input$daterange1[2] ,
+             Applications == Applications ,
+             Label == Label 
+      )
+  })
+  
+  
+  subsetdata <- reactive({
+    if (is.null(input$GoalInput)) {
+      return(NULL)
+    }    
+    
+    graph_data3 %>%
+      filter(goal== input$GoalInput ,
+             Week >= input$daterange1[1] ,
+             Week <= input$daterange1[2] ,
+             apps == apps
+      )
+  })
+  
+  
+  
+  
+  mydates <- reactive({if (is.null(input$GoalInput)) {
+    return(NULL)
+  }    
+    dates %>%
+      filter(goal== input$GoalInput ,
+             Start_date == Start_date ,
+             End_date == End_date)})
+  
+  
+  
+  output$dates <- renderUI({
+    minval <- mydates()$Start_date
+    maxval <- mydates()$End_date
+    dateRangeInput('daterange1', label = "Choose Date Range:",
+                   start = minval, end = maxval, 
+                   min = minval, max = maxval,
+                   separator = " - ", format = "mm/dd/yy"
+    )
+  })
+  
+  
+  output$coolplot <- renderPlot({
+    if (is.null(filtered())) {
+      return()
+    }
+    ggplot(filtered()) + geom_line(aes(x=submitted_at, y=Applications, colour=Label)) + 
+      ggtitle(paste("Cumulative",filtered()$goal, "Applications")) +
+      scale_colour_manual(values=c("blue","gray"))+ theme(legend.text=element_text(size=15))
+  })
+  
+  output$secondplot <- renderPlot({
+    if (is.null(subsetdata())) {
+      return()
+    }
+    ggplot(subsetdata(), aes_string('Week', 'apps')) +
+      geom_smooth(method='lm') +
+      geom_point()+
+      geom_line()+
+      ggtitle(paste('Weekly', subsetdata()$goal, 'Applications')) +
+      xlab('Time')
+  })
+  
+  
+  
+  
+}
+
+
+shinyApp(ui = ui, server = server)
+
+
+
+
+```
+
+## Embedded Full Application
+
+This is how the full application or completed product looks like. To see the full app in your web browser click this link https://geoffkip.shinyapps.io/Goal_Progress/. This looks better when you can see it when it is not embedded in a document.
+
+```{r, echo=FALSE}
+shinyApp(
+ui= fluidPage(theme = shinytheme("cerulean"),
+                sidebarLayout(
+                  sidebarPanel(
+                    uiOutput("GoalOutput",width="100%"), 
+                    uiOutput("dates",width="100%"),
+                    h5("Last Updated 02/23/17", align="center"),
+                    br(), br(),
+                    br(), br(),
+                    br(), br(),
+                    br(), br(),
+                    br(), br(),
+                    br(), br(),
+                    br(), br(),
+                    br(), br(),
+                    br(), br(),
+                    br(), br(),
+                    br(), br(),
+                    br(), br(),
+                    br(), br(),
+                    br(), br(),
+                    br(), br(),
+                    splitLayout(cellwidths=size, plotOutput("secondplot", width=size, height=410))
+                    
+                  ),
+                  
+                  mainPanel(
+                    h1("Goal Progress Report", align="center"),
+                    h2("Summary of Goal Progress by Project", align="center"),
+                    div(uiOutput("Test1",width="100%"),style="font-size:90%"),
+                    br(), br(),
+                    fluidRow(plotOutput("coolplot"))))),
+
+
+
+server= function(input, output, session) {
+  
+  session$onFlushed(function() {
+    session$sendCustomMessage(type='jsCode', list(value = script))
+  }, once = FALSE)
+  
+  
+  output$results <- renderTable(Front_page_data2, align="c")
+  
+  output$Test1 <- renderUI({
+    list(
+      tags$head(tags$script(HTML
+                            ('Shiny.addCustomMessageHandler("jsCode", function(message) { eval(message.value); });')))
+      , tableOutput("results")
+    )
+  })
+  
+  
+  
+  
+  output$GoalOutput <- renderUI({
+    selectInput("GoalInput", "Goal",
+                sort(unique(report_data$goal)),
+                selected = "FastTrack")})  
+  
+  
+  filtered <- reactive({
+    if (is.null(input$GoalInput)) {
+      return(NULL)
+    }    
+    
+    graph_data %>%
+      filter(goal== input$GoalInput ,
+             submitted_at >= input$daterange1[1] ,
+             submitted_at <= input$daterange1[2] ,
+             Applications == Applications ,
+             Label == Label 
+      )
+  })
+  
+  
+  subsetdata <- reactive({
+    if (is.null(input$GoalInput)) {
+      return(NULL)
+    }    
+    
+    graph_data3 %>%
+      filter(goal== input$GoalInput ,
+             Week >= input$daterange1[1] ,
+             Week <= input$daterange1[2] ,
+             apps == apps
+      )
+  })
+  
+  
+  
+  
+  mydates <- reactive({if (is.null(input$GoalInput)) {
+    return(NULL)
+  }    
+    dates %>%
+      filter(goal== input$GoalInput ,
+             Start_date == Start_date ,
+             End_date == End_date)})
+  
+  
+  
+  output$dates <- renderUI({
+    minval <- mydates()$Start_date
+    maxval <- mydates()$End_date
+    dateRangeInput('daterange1', label = "Choose Date Range:",
+                   start = minval, end = maxval, 
+                   min = minval, max = maxval,
+                   separator = " - ", format = "mm/dd/yy"
+    )
+  })
+  
+  
+  output$coolplot <- renderPlot({
+    if (is.null(filtered())) {
+      return()
+    }
+    ggplot(filtered()) + geom_line(aes(x=submitted_at, y=Applications, colour=Label)) + 
+      ggtitle(paste("Cumulative",filtered()$goal, "Applications")) +
+      scale_colour_manual(values=c("blue","gray"))+ theme(legend.text=element_text(size=15))
+  })
+  
+  output$secondplot <- renderPlot({
+    if (is.null(subsetdata())) {
+      return()
+    }
+    ggplot(subsetdata(), aes_string('Week', 'apps')) +
+      geom_smooth(method='lm') +
+      geom_point()+
+      geom_line()+
+      ggtitle(paste('Weekly', subsetdata()$goal, 'Applications')) +
+      xlab('Time')
+  })
+  
+  
+  
+  
+})
+```
+
+##Conclusion and next steps
+I hope this provided you with a quick overview of some of the the things you can do with R shiny and how I was able to build the "Goal Progress App" with the code above. Shiny provides several advantages in that:
+
+1) You do not need to know HTML+CSS, or Javascript to build web applications. You can extend on the R shiny if you do know these languages to further customise the user interface but it is not necessary.
+
+2) R shiny is considerably cheaper than other dashboard tools out there e.g Qlik, Tableau or other BI dashboard tools.
+
+3) R Shiny has endless customization options. If you know the R programming languages, you can use all the packages
+in R such as ggplot2,ggvis, ggmap to create maps and nice dynamic visualizations.
+
+4) Shiny is scalable meaning that an unlimited number of people can view the app at the same time unlike Excel where only one person is able to view a report at a time.
+
+So what are the next steps and resources to start using Shiny?
+
+1) If you have not already done so, learn the R programming language. R is free and is a very powerful programming language which can be used for a variety of different purposes. There are a lot of resources online which you can use to learn R for free. I recommend using sites like EDX, coursera or Udemy as they offer several free courses that you can use to learn R.
+
+2) Learn the Shiny Package. Shiny is a package in R that you use to create the Shiny Web apps and dynamic reports.
+There are several resources online that you can use again to learn Shiny.
+I recommend using the Shiny Tutorial Webinar series ---> https://shiny.rstudio.com/tutorial/.
+These three webinar series will provide you a basic understanding of how shiny works which will provide you enough knowledge to build a basic shiny app.
+
+
+If you have any questions please feel free to contact me at my email address ---> g_kip@live.com
