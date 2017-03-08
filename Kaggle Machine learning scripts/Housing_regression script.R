@@ -5,6 +5,7 @@ library(Amelia)
 library(mice)
 library(lattice)
 
+##Script to show the method of imputation for missing variables
 #set working directory 
 setwd("~/Dropbox/House Regression Kaggle data")
 
