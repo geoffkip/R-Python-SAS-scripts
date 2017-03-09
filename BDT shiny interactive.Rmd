@@ -148,20 +148,55 @@ script <- "$('tbody tr td:nth-child(7)').each(function() {
 ```
 
 ##Creating Reactive Graphs with ggplot2
-With Shiny you are able to create Reactive graphs which are dependent on the selection of a user. I use ggplot2 which is a package that you can install in R to create nice visualizations and graphs. The graphs shows the cumulative apps we have submitted and also the app trajectory we need to be submitting to reach the goal. The graphs are dependent on the Goal selection and also the date range. So for example if I go up and change my Goal from the earlier drop down list and change it to "Magellan PACE" or fiddle with the date range then the graph will change to show the current selected 
-Goal or change to show the applications during a specific date range. Try changing around with the Goal drop down menu earlier and also with the date range and see how the graph reacts. Notice how the title is also reactive to the selected Goal.
+With Shiny you are able to create Reactive graphs which are dependent on the selection of a user. I use ggplot2 which is a package that you can install in R to create nice visualizations and graphs. The graphs shows the cumulative apps we have submitted and also the app trajectory we need to be submitting to reach the goal. The graphs are dependent on the Goal selection and also the date range. So for example if I go up and change my Goal from the earlier drop down list and change it to "Magellan PACE" or fiddle with the date range then the graph will change to show the current selected Goal or change to show the applications during a specific date range. Try changing around with the Goal drop down menu and also with the date range and see how the graph reacts. Notice how the title is also reactive to the selected Goal.
+
+```{r, echo=FALSE}
+output$GoalOutput1 <- renderUI({
+    selectInput("GoalInput1", "Goal",
+                sort(unique(report_data$goal)),
+                selected = "FastTrack")})  
+
+  
+mydates1 <- reactive({if (is.null(input$GoalInput1)) {
+    return(NULL)
+  }    
+    dates %>%
+      filter(goal== input$GoalInput1 ,
+             Start_date == Start_date ,
+             End_date == End_date)})
+  
+  
+  
+  output$dates1 <- renderUI({
+    minval <- mydates1()$Start_date
+    maxval <- mydates1()$End_date
+    dateRangeInput('daterange2', label = "Choose Date Range:",
+                   start = minval, end = maxval, 
+                   min = minval, max = maxval,
+                   separator = " - ", format = "mm/dd/yy"
+    )
+  })
+  
+inputPanel(
+uiOutput("GoalOutput1"))
+  
+uiOutput("dates1")
+  
+  
+```
+
 
 ```{r, warning=FALSE}
 
   filtered <- reactive({
-    if (is.null(input$GoalInput)) {
+    if (is.null(input$GoalInput1)) {
       return(NULL)
     }    
     
     graph_data %>%
-      filter(goal== input$GoalInput ,
-             submitted_at >= input$daterange1[1] ,
-             submitted_at <= input$daterange1[2] ,
+      filter(goal== input$GoalInput1 ,
+             submitted_at >= input$daterange2[1] ,
+             submitted_at <= input$daterange2[2] ,
              Applications == Applications ,
              Label == Label 
       )
@@ -176,7 +211,7 @@ Goal or change to show the applications during a specific date range. Try changi
       scale_colour_manual(values=c("blue","gray"))+ theme(legend.text=element_text(size=15))
   })
  
- plotOutput("coolplot")
+plotOutput("coolplot")
   
  
 ```
@@ -186,14 +221,14 @@ This graph uses the same concept as the earlier graph but just shows the weekly 
 ```{r, warning=FALSE}
 
  subsetdata <- reactive({
-    if (is.null(input$GoalInput)) {
+    if (is.null(input$GoalInput1)) {
       return(NULL)
     }    
     
     graph_data3 %>%
-      filter(goal== input$GoalInput ,
-             Week >= input$daterange1[1] ,
-             Week <= input$daterange1[2] ,
+      filter(goal== input$GoalInput1 ,
+             Week >= input$daterange2[1] ,
+             Week <= input$daterange2[2] ,
              apps == apps
       )
   })
