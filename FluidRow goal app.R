@@ -24,10 +24,8 @@ $(this).css('background-color', '#f00');
 }
 })"
 
-#load data file
-#setwd("K:/ADMINISTRATIVE REPORTS/Daily Response Tracker")
-#myfile <- file.path("data", "goal_progress_raw_data.csv") 
-report_data <- read.csv("K:/ADMINISTRATIVE REPORTS/Daily Response Tracker/goal_progress_raw_data.CSV", header=T)
+#load data 
+report_data <- read.csv("data/goal_progress_raw_data.CSV", header=T)
 report_data1 <- (report_data[,c(1,2,4,5)])
 graph_data <- melt(report_data1, id=c("goal","submitted_at"))
 graph_data$submitted_at <- mdy(graph_data$submitted_at)
@@ -66,34 +64,26 @@ dates$End_date <- mdy(dates$End_date)
 
 
 
-ui <- (fluidPage(theme = shinytheme("cerulean"),
-  fluidRow(
-    column(4,
-           uiOutput("GoalOutput", width="100%"),
-           uiOutput("dates",width="100%"),
-           br(), br(),
-           br(), br(),
-           br(), br(),
-           br(), br(),
-           br(), br(),
-           br(), br(),
-           br(), br(),
-           br(), br(),
-           br(), br(),
-           br(), br(),
-           br(), br(),
-           br(), br(),
-           plotOutput("secondplot")
-    ),
-    column(8,
-           h1("Goal Progress Report", align="center"),
-           h2("Summary of Goal Progress by Project", align="center"),
-           uiOutput("Test1"),
-           br(), br(),
-           (plotOutput("coolplot")
-    )
-  )
-)))
+ui <- fluidPage(theme = shinytheme("cerulean"),
+                fluidRow(
+                  column(2, 
+                         img(src="bdtlogo.png", width="100%", height=100, align="center")),
+                  column(10,
+                         h1("Goal Progress Report", align="center"),
+                         h2("Summary of Goal Progress by Project", align="center"))),
+                  fluidRow(
+                  column(12, 
+                         h4("Last Updated 02/23/17", align="left"),
+                         div(uiOutput("Test1", width="100%", align="center"),style="font-size:100%"))),
+                fluidRow(
+                  column(2,  
+                         uiOutput("GoalOutput", width="100%"),
+                         uiOutput("dates",width="100%")),
+                  column(4,
+                         plotOutput("secondplot")),
+                  column(6,
+                         (plotOutput("coolplot")))
+                ))
 
 
 server <- function(input, output, session) {
@@ -117,7 +107,7 @@ server <- function(input, output, session) {
   
   
   output$GoalOutput <- renderUI({
-    selectInput("GoalInput", "Goal",
+    selectInput("GoalInput", "Choose a Project you want to track:",
                 sort(unique(report_data$goal)),
                 selected = "FastTrack")})  
   
