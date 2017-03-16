@@ -269,19 +269,17 @@ as.numeric.factor <- function(x) {as.numeric(levels(x))[x]}
 
 script <- "$('tbody tr td:nth-child(7)').each(function() {
 
-              var cellValue = $(this).text();
+var cellValue = $(this).text();
 
-              if (cellValue > 0) {
-                $(this).css('background-color', '#0c0');
-              }
-              else if (cellValue < 0) {
-                $(this).css('background-color', '#f00');
-              }
-            })"
+if (cellValue > 0) {
+$(this).css('background-color', '#0c0');
+}
+else if (cellValue < 0) {
+$(this).css('background-color', '#f00');
+}
+})"
 
-#load data file
-#setwd("K:/ADMINISTRATIVE REPORTS/Daily Response Tracker")
-#myfile <- file.path("data", "goal_progress_raw_data.csv") 
+#load data 
 report_data <- read.csv("data/goal_progress_raw_data.CSV", header=T)
 report_data1 <- (report_data[,c(1,2,4,5)])
 graph_data <- melt(report_data1, id=c("goal","submitted_at"))
@@ -319,32 +317,28 @@ dates <- Front_page_data2[,c(1,8,9)]
 dates$Start_date <- mdy(dates$Start_date)
 dates$End_date <- mdy(dates$End_date)
 
-size="100%"
+
 
 ui <- fluidPage(theme = shinytheme("cerulean"),
-                sidebarLayout(
-                  sidebarPanel(
-                    uiOutput("GoalOutput",width="100%"), 
-                    uiOutput("dates",width="100%"),
-                    img(src="bdtlogo.png", width="50%"),
-                    h5("Last Updated 02/23/17", align="center"),
-                    br(), br(),
-                    br(), br(),
-                    br(), br(),
-                    br(), br(),
-                    br(), br(),
-                    br(), br(),
-                    splitLayout(cellwidths=size, plotOutput("secondplot", width=size, height=410))
-                    
-                  ),
-                  
-                  mainPanel(
-                    h1("Goal Progress Report", align="center"),
-                    h2("Summary of Goal Progress by Project", align="center"),
-                    div(uiOutput("Test1",width="100%"),style="font-size:90%"),
-                    br(), br(),
-                    fluidRow(plotOutput("coolplot")))))
-
+                fluidRow(
+                  column(2, 
+                         img(src="bdtlogo.png", width="100%", height=100, align="center")),
+                  column(10,
+                         h1("Goal Progress Report", align="center"),
+                         h2("Summary of Goal Progress by Project", align="center"))),
+                  fluidRow(
+                  column(12, 
+                         h4("Last Updated 02/23/17", align="left"),
+                         div(uiOutput("Test1", width="100%", align="center"),style="font-size:100%"))),
+                fluidRow(
+                  column(2,  
+                         uiOutput("GoalOutput", width="100%"),
+                         uiOutput("dates",width="100%")),
+                  column(4,
+                         plotOutput("secondplot")),
+                  column(6,
+                         (plotOutput("coolplot")))
+                ))
 
 
 server <- function(input, output, session) {
@@ -368,7 +362,7 @@ server <- function(input, output, session) {
   
   
   output$GoalOutput <- renderUI({
-    selectInput("GoalInput", "Goal",
+    selectInput("GoalInput", "Choose a Project you want to track:",
                 sort(unique(report_data$goal)),
                 selected = "FastTrack")})  
   
@@ -451,51 +445,35 @@ server <- function(input, output, session) {
   
 }
 
-
 shinyApp(ui = ui, server = server)
-
-
-
-
 ```
 
 ## Embedded Full Application
 
-This is how the full application or completed product looks like. To see the full app in your web browser click this link https://geoffkip.shinyapps.io/Goal_Progress/. This looks better when you can see it when it is not embedded in a document.
+This is how the full application or completed product looks like. To see the full app in your web browser click this link https://geoffkip.shinyapps.io/fluidrow_app/. This looks better when you can see it when it is not embedded in a document.
 
 ```{r, echo=FALSE}
 shinyApp(
 ui= fluidPage(theme = shinytheme("cerulean"),
-                sidebarLayout(
-                  sidebarPanel(
-                    uiOutput("GoalOutput",width="100%"), 
-                    uiOutput("dates",width="100%"),
-                    h5("Last Updated 02/23/17", align="center"),
-                    br(), br(),
-                    br(), br(),
-                    br(), br(),
-                    br(), br(),
-                    br(), br(),
-                    br(), br(),
-                    br(), br(),
-                    br(), br(),
-                    br(), br(),
-                    br(), br(),
-                    br(), br(),
-                    br(), br(),
-                    br(), br(),
-                    br(), br(),
-                    br(), br(),
-                    splitLayout(cellwidths=size, plotOutput("secondplot", width=size, height=410))
-                    
-                  ),
-                  
-                  mainPanel(
-                    h1("Goal Progress Report", align="center"),
-                    h2("Summary of Goal Progress by Project", align="center"),
-                    div(uiOutput("Test1",width="100%"),style="font-size:90%"),
-                    br(), br(),
-                    fluidRow(plotOutput("coolplot"))))),
+                fluidRow(
+                  column(2, 
+                         img(src="bdtlogo.png", width="100%", height=100, align="center")),
+                  column(10,
+                         h1("Goal Progress Report", align="center"),
+                         h2("Summary of Goal Progress by Project", align="center"))),
+                  fluidRow(
+                  column(12, 
+                         h4("Last Updated 02/23/17", align="left"),
+                         div(uiOutput("Test1", width="100%", align="center"),style="font-size:100%"))),
+                fluidRow(
+                  column(2,  
+                         uiOutput("GoalOutput", width="100%"),
+                         uiOutput("dates",width="100%")),
+                  column(4,
+                         plotOutput("secondplot")),
+                  column(6,
+                         (plotOutput("coolplot")))
+                )),
 
 
 
