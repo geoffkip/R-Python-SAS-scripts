@@ -13,7 +13,7 @@ library(classInt)
 library(scales)
 
 
-setwd("~/Documents/R files/BDT de-identified work/Benephilly_map/data")
+setwd("D:/r/shiny_apps/Benephilly_map/data")
 data(zipcode)
 zipcode$zip <- as.numeric(zipcode$zip)
 str(zipcode)
@@ -46,7 +46,7 @@ print(data_map2)
 
 #prepare chloropleth map
 #read shape file
-philly_shp <- readOGR("/Users/geoffrey.kip/Documents/R files/BDT de-identified work/Benephilly_map/data/Zipcodes_Poly.shp")
+philly_shp <- readOGR("D:/r/shiny_apps/Benephilly_map/data/Zipcodes_Poly.shp")
 philly_shp@data$id <- rownames(philly_shp@data)
 philly_shp.point <- fortify(philly_shp, region="id")
 philly_shp.df <- inner_join(philly_shp.point,philly_shp@data, by="id")
@@ -55,9 +55,17 @@ head(philly_shp.df)
 ggplot(philly_shp.df, aes(long, lat, group=group )) + geom_polygon()
 
 #dbfdata <- read.dbf("Zipcodes_Poly.dbf", as.is = TRUE)
+#philly_shp@data$CLIENTS_SE <- NULL
 
-#zips <- read.csv("Zipcodes_Poly.csv")
-#write.dbf(zips, "Zipcodes_Poly.dbf", factor2char = TRUE, max_nchar = 254)
+#zips <- read.csv("D:/r/Shapefiles_dbfedit.csv")
+#zips[,c(1,3)] <- NULL
+
+#philly_shp_test <- inner_join(philly_shp.df, zips, by="CODE")
+#ggplot(philly_shp_test, aes(long, lat, group=group )) + geom_polygon()
+
+#zips <- na.omit(zips)
+
+#write.dbf(zips, "Zipcodes_Poly2.dbf", factor2char = TRUE, max_nchar = 254)
 #philly_shp.df2 <- merge(philly_shp.df, zips, by="id")
 #philly_shp.df[,1:2] <- round(philly_shp.df[,1:2],2)
 #benephilly_data2[,5:6] <- round(benephilly_data2[,5:6],2)
@@ -72,7 +80,7 @@ m0 <- ggplot(data=philly_shp.df)
 # empty map (only borders)
 m1 <- m0 + geom_path(aes(x=long, y=lat, group=group), color='gray') + coord_equal()
 m1b <- m1  + geom_point(aes(x = long, y = lat, size = value), 
-                         data = benephilly_data2, alpha = .5, pch=21, fill="red")
+                        data = benephilly_data2, alpha = .5, pch=21, fill="red")
 
 
 m2 <- m1 + geom_polygon(aes(x=long, y=lat, group=group, fill=CLIENTS_SE))
@@ -104,17 +112,48 @@ ggplot() +
   theme_nothing(legend = TRUE)+
   geom_text(data=benephilly_data2b, aes(longitude,latitude,label=zip), color="grey",
             size=2,fontface="bold")+
-  labs(title="Clients Served by Zipcode")
+  labs(title="Clients Served by Zipcode Jul 2016 - Dec 2016")
+
+
+#Leaflet map
+
+philly_shp2 <- readOGR("D:/r/shiny_apps/Benephilly_map/data/Zipcodes_Poly.shp")
+philly_shp2@data$CLIENTS_SE <- as.numeric(levels(philly_shp2@data$CLIENTS_SE))[philly_shp2@data$CLIENTS_SE]
+pal <- colorQuantile("YlGn", NULL, n = 5)
+pal2 <- colorNumeric("YlGn", NULL, n=6)
+
+philly_popup <- paste0("<strong> Zipcodes </strong>", 
+                      philly_shp2$CODE, 
+                      "<br><strong> Clients served per zipcode </strong>", 
+                      philly_shp2$CLIENTS_SE)
+
+leaflet(data=philly_shp2) %>%
+  addProviderTiles("CartoDB.Positron") %>%
+  addPolygons(fillColor = ~pal(CLIENTS_SE), 
+              fillOpacity = 0.8, 
+              color = "#BDBDC3", 
+              weight = 1,
+              popup = philly_popup) %>%
+  addLegend("bottomright",pal = pal2, values = ~CLIENTS_SE, bins=6,
+            labels= c("0" , "50" , "100" , "150" , "200" , "250+"),
+            opacity = 1,
+            title = 'Legend')
+  
+
+
+
+
+
 
 ##better map
 #ggplot() +
- #geom_polygon(data = philly_shp.df, 
-  #             aes(x = long, y = lat, group = group, fill = order(CLIENTS_SE)), 
-   #            color = "black", size = 0.25) + 
-  #coord_map()+
-  #scale_color_gradient2(low="green", mid="red",high="blue", midpoint=150,
-  #                      breaks=c(50,100,150,200,250,300), labels=c(50,100,150,200,250,300)) +
-  #theme(text=element_text(size=15))
+#geom_polygon(data = philly_shp.df, 
+#             aes(x = long, y = lat, group = group, fill = order(CLIENTS_SE)), 
+#            color = "black", size = 0.25) + 
+#coord_map()+
+#scale_color_gradient2(low="green", mid="red",high="blue", midpoint=150,
+#                      breaks=c(50,100,150,200,250,300), labels=c(50,100,150,200,250,300)) +
+#theme(text=element_text(size=15))
 
-  #theme_nothing(legend = TRUE)+
-  #labs(title="Clients Served by Zipcode")
+#theme_nothing(legend = TRUE)+
+#labs(title="Clients Served by Zipcode")
