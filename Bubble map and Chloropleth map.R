@@ -140,9 +140,37 @@ leaflet(data=philly_shp2) %>%
             title = 'Legend')
   
 
+#Joining data
 
+philly_shp3 <- readOGR("D:/r/shiny_apps/Benephilly_map/data/Zipcodes_Poly.shp")
+philly_shp3@data$CLIENTS_SE <- NULL
 
+zips <- read.csv("D:/r/Shapefiles_dbfedit.csv")
+zips[,c(1,3)] <- NULL
 
+philly_shp3@data <- suppressWarnings(left_join(philly_shp3@data, zips, by="CODE"))
+head(philly_shp3@data)
+
+philly_shp3@data$clients_served <- as.numeric(levels(philly_shp3@data$clients_served))[philly_shp3@data$clients_served]
+pal <- colorQuantile("YlGn", NULL, n = 5)
+pal2 <- colorNumeric("YlGn", NULL, n=6)
+
+philly_popup <- paste0("<strong> Zipcodes </strong>", 
+                       philly_shp3$CODE, 
+                       "<br><strong> Clients served per zipcode </strong>", 
+                       philly_shp3$clients_served)
+
+leaflet(data=philly_shp3) %>%
+  addProviderTiles("CartoDB.Positron") %>%
+  addPolygons(fillColor = ~pal(clients_served), 
+              fillOpacity = 0.8, 
+              color = "#BDBDC3", 
+              weight = 1,
+              popup = philly_popup) %>%
+  addLegend("bottomright",pal = pal2, values = ~clients_served, bins=6,
+            labels= c("0" , "50" , "100" , "150" , "200" , "250+"),
+            opacity = 1,
+            title = 'Legend')
 
 
 ##better map
